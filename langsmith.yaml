@@ -1,0 +1,8 @@
+project: agentops
+description: "AgentOps - AI-Powered Incident Response & Operations Agent"
+tags:
+  - agentops
+  - incident-response
+  - langgraph
+metadata:
+  version: "0.1.0"

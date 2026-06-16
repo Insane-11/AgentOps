@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agentops
+      POSTGRES_PASSWORD: agentops
+      POSTGRES_DB: agentops
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentops"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://agentops:agentops@postgres:5432/agentops"
+      DATABASE_URL_SYNC: "postgresql://agentops:agentops@postgres:5432/agentops"
+      JWT_SECRET: "change-me-in-production"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: "agentops"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  admin-dashboard:
+    build: ./admin-dashboard
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE: "http://localhost:8000"
+    depends_on:
+      - backend
+
+  engineer-dashboard:
+    build: ./engineer-dashboard
+    ports:
+      - "5174:5173"
+    environment:
+      VITE_API_BASE: "http://localhost:8000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
