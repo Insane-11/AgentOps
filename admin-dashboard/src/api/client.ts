@@ -84,6 +84,48 @@ class ApiClient {
       method: "POST",
     });
   }
+
+  runWorkflow(incidentId: string, onEvent: (data: any) => void, onResult: (data: any) => void): AbortController {
+    const controller = new AbortController();
+    const token = this.token;
+    const baseUrl = API_BASE;
+
+    (async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/workflow/run/${incidentId}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, Accept: "text/event-stream" },
+          signal: controller.signal,
+        });
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let currentEvent = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const t = line.trim();
+            if (t.startsWith("event:")) { currentEvent = t.slice(6).trim(); }
+            else if (t.startsWith("data:")) {
+              try {
+                const p = JSON.parse(t.slice(5).trim());
+                currentEvent === "result" ? onResult(p) : onEvent(p);
+              } catch {}
+              currentEvent = "";
+            }
+          }
+        }
+      } catch (err: any) {
+        if (err.name !== "AbortError") console.error("SSE error:", err);
+      }
+    })();
+    return controller;
+  }
 }
 
 export const api = new ApiClient();

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import engine, Base
-from app.api import auth, incidents, engineers, alerts, triage
+from app.api import auth, incidents, engineers, alerts, triage, workflow
 from app.langserve_routes import add_agent_routes
 
 
@@ -32,6 +32,7 @@ app.include_router(incidents.router)
 app.include_router(engineers.router)
 app.include_router(alerts.router)
 app.include_router(triage.router)
+app.include_router(workflow.router)
 
 add_agent_routes(app)
 
