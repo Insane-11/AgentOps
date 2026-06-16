@@ -1,6 +1,8 @@
 from langchain.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
+
+from app.config import settings
 
 
 class RemediationStep(BaseModel):
@@ -28,12 +30,19 @@ Given the incident details and investigation findings, your job is to:
 5. List verification steps to confirm the fix
 
 Be specific and practical. Prioritize speed-to-fix while minimizing blast radius.
-Respond with structured data only."""
+
+You MUST respond with valid JSON only, matching this schema:
+{"steps": [{"order": 1, "action": "...", "expected_duration": "...", "rollback": "...", "automated": true}], "estimated_ttr": "...", "risk_level": "LOW|MEDIUM|HIGH", "verify_steps": ["..."]}"""
 
 
-def create_remediation_chain(llm: ChatOpenAI | None = None):
+def create_remediation_chain(llm: ChatOllama | None = None):
     if llm is None:
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+        llm = ChatOllama(
+            model=settings.ollama_llm_model,
+            base_url=settings.ollama_base_url,
+            temperature=0.2,
+            format="json",
+        )
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),

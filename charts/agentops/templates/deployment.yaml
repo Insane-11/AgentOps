@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agentops.fullname" . }}-backend
+  labels:
+    app: {{ include "agentops.name" . }}
+    component: backend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "agentops.name" . }}
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: {{ include "agentops.name" . }}
+        component: backend
+    spec:
+      containers:
+        - name: backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+asyncpg://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.password }}@{{ .Release.Name }}-postgresql:5432/{{ .Values.postgresql.auth.database }}"
+            - name: JWT_SECRET
+              value: "{{ .Values.config.jwtSecret }}"
+            - name: OPENAI_API_KEY
+              value: "{{ .Values.config.openaiApiKey }}"
+            - name: LANGSMITH_API_KEY
+              value: "{{ .Values.config.langsmithApiKey }}"
+            - name: LANGSMITH_PROJECT
+              value: "{{ .Values.config.langsmithProject }}"
+            - name: LANGSMITH_TRACING
+              value: "true"
+            - name: ALLOWED_ORIGINS
+              value: "{{ .Values.config.allowedOrigins }}"
+            - name: REDIS_URL
+              value: "redis://{{ .Release.Name }}-redis-master:6379/0"
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

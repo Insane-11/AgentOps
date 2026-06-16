@@ -27,6 +27,8 @@ export default function IncidentDetail() {
   );
   const [workflowResult, setWorkflowResult] = useState<any>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [similarIncidents, setSimilarIncidents] = useState<any[] | null>(null);
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
 
   const load = useCallback(() => {
     if (id) {
@@ -42,6 +44,22 @@ export default function IncidentDetail() {
       }
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      setLoadingSimilar(true);
+      try {
+        await api.embedIncident(id);
+        const result = await api.getSimilarIncidents(id);
+        setSimilarIncidents(result.incidents);
+      } catch {
+        setSimilarIncidents([]);
+      } finally {
+        setLoadingSimilar(false);
+      }
+    })();
+  }, [id]);
 
   const handleRunTriage = async () => {
     setRunningTriage(true);
@@ -255,6 +273,39 @@ export default function IncidentDetail() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Similar Past Incidents */}
+      <div className="mb-6 rounded-lg border bg-white p-6">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">Similar Past Incidents</h2>
+        {loadingSimilar && <p className="text-sm text-gray-400">Loading similar incidents...</p>}
+        {!loadingSimilar && similarIncidents && similarIncidents.length === 0 && (
+          <p className="text-sm text-gray-400">No similar past incidents found.</p>
+        )}
+        {!loadingSimilar && similarIncidents && similarIncidents.length > 0 && (
+          <div className="space-y-3">
+            {similarIncidents.map((si) => (
+              <div key={si.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="font-medium text-gray-900">{si.title}</span>
+                  <span className="text-xs text-gray-400">
+                    Similarity: {(si.similarity * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div className="mb-1 flex gap-2 text-xs">
+                  <span className={`rounded-full px-2 py-0.5 font-medium ${
+                    si.severity === "CRITICAL" ? "bg-red-100 text-red-700" :
+                    si.severity === "HIGH" ? "bg-orange-100 text-orange-700" :
+                    si.severity === "MEDIUM" ? "bg-yellow-100 text-yellow-700" :
+                    "bg-green-100 text-green-700"
+                  }`}>{si.severity}</span>
+                  <span className="text-gray-400">{new Date(si.created_at).toLocaleDateString()}</span>
+                </div>
+                <p className="text-xs text-gray-500 line-clamp-2">{si.description}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>

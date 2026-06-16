@@ -2,7 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,15 +22,17 @@ OrgDep = Annotated[Organization, Depends(get_current_org)]
 
 
 def _get_triage_chain():
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=settings.openai_api_key)
+    llm = ChatOllama(
+        model=settings.ollama_llm_model,
+        base_url=settings.ollama_base_url,
+        temperature=0,
+        format="json",
+    )
     return create_triage_chain(llm)
 
 
 @router.post("/run/{incident_id}", response_model=IncidentRead)
 async def run_triage(incident_id: uuid.UUID, org: OrgDep, db: AsyncSession = Depends(get_db)):
-    if not settings.openai_api_key:
-        raise HTTPException(status_code=503, detail="OpenAI API key not configured. Set OPENAI_API_KEY in .env")
-
     result = await db.execute(
         select(Incident).where(Incident.id == incident_id, Incident.organization_id == org.id)
     )

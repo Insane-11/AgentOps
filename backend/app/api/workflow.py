@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from app.agents.incident_graph import stream_incident_workflow
-from app.config import settings
 from app.database import get_db
 from app.models.incident import Incident
 from app.models.organization import Organization
@@ -22,9 +21,6 @@ OrgDep = Annotated[Organization, Depends(get_current_org)]
 
 @router.post("/run/{incident_id}")
 async def run_workflow(incident_id: uuid.UUID, org: OrgDep, db: AsyncSession = Depends(get_db)):
-    if not settings.openai_api_key:
-        raise HTTPException(status_code=503, detail="OpenAI API key not configured")
-
     result = await db.execute(
         select(Incident).where(Incident.id == incident_id, Incident.organization_id == org.id)
     )

@@ -17,8 +17,18 @@ export default function Dashboard() {
   return (
     <div className="p-6">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">AgentOps</h1>
-        <p className="text-gray-500">AI-Powered Incident Response Dashboard</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">AgentOps</h1>
+            <p className="text-gray-500">AI-Powered Incident Response Dashboard</p>
+          </div>
+          <nav className="flex gap-4">
+            <Link to="/" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">Dashboard</Link>
+            <Link to="/incidents" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">Incidents</Link>
+            <Link to="/engineers" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">Engineers</Link>
+            <Link to="/analytics" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">Analytics</Link>
+          </nav>
+        </div>
       </header>
 
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">

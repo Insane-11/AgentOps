@@ -1,0 +1,58 @@
+replicaCount: 2
+
+image:
+  repository: agentops/backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  host: agentops.example.com
+
+postgresql:
+  enabled: true
+  image: pgvector/pgvector:pg16
+  auth:
+    username: agentops
+    password: agentops
+    database: agentops
+  primary:
+    persistence:
+      size: 10Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: false
+
+config:
+  jwtSecret: "change-me-in-production"
+  openaiApiKey: ""
+  langsmithApiKey: ""
+  langsmithProject: "agentops"
+  allowedOrigins: "http://localhost:5173,http://localhost:5174"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+frontends:
+  admin:
+    enabled: true
+    image: agentops/admin-dashboard
+    port: 5173
+  engineer:
+    enabled: true
+    image: agentops/engineer-dashboard
+    port: 5174
+  oncall:
+    enabled: false
+    image: agentops/oncall-app

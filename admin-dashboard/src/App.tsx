@@ -4,6 +4,7 @@ import LoginPage from "./pages/LoginPage";
 import Dashboard from "./pages/Dashboard";
 import IncidentsPage from "./pages/IncidentsPage";
 import EngineersPage from "./pages/EngineersPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
   const auth = useAuth();
@@ -40,6 +41,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <EngineersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <AnalyticsPage />
             </ProtectedRoute>
           }
         />

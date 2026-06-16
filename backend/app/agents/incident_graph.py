@@ -1,13 +1,19 @@
 import json
+import uuid
 from typing import Any, AsyncGenerator, TypedDict
 
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
+from sqlalchemy import select
 
 from app.agents.triage_agent import create_triage_chain
 from app.agents.investigation_agent import create_investigation_chain
 from app.agents.remediation_agent import create_remediation_chain
+from app.models.incident import Incident
+from app.models.incident_embedding import IncidentEmbedding
+from app.config import settings
+from app.observability import get_trace_callbacks, is_langfuse_available
 
 
 class AgentWorkflowState(TypedDict):
@@ -28,6 +34,7 @@ class AgentWorkflowState(TypedDict):
     affected_systems: list[str]
     investigation_steps: list[str]
     logs_to_check: list[str]
+    rag_context: str
 
     remediation_steps: list[dict]
     estimated_ttr: str
@@ -55,6 +62,7 @@ def create_default_state(incident_id: str, title: str, description: str, service
         "affected_systems": [],
         "investigation_steps": [],
         "logs_to_check": [],
+        "rag_context": "",
         "remediation_steps": [],
         "estimated_ttr": "",
         "risk_level": "",
@@ -65,7 +73,12 @@ def create_default_state(incident_id: str, title: str, description: str, service
 
 
 def _get_llm():
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    return ChatOllama(
+        model=settings.ollama_llm_model,
+        base_url=settings.ollama_base_url,
+        temperature=0,
+        format="json",
+    )
 
 
 async def triage_node(state: AgentWorkflowState) -> AgentWorkflowState:
@@ -91,12 +104,46 @@ async def triage_node(state: AgentWorkflowState) -> AgentWorkflowState:
 async def investigate_node(state: AgentWorkflowState) -> AgentWorkflowState:
     state["current_node"] = "investigate_node"
     try:
+        from app.database import async_session_factory as _sf
+
+        rag_context = ""
+        async with _sf() as session:
+            stmt = select(IncidentEmbedding).where(
+                IncidentEmbedding.incident_id == uuid.UUID(state["incident_id"])
+            )
+            result = await session.execute(stmt)
+            source_embeddings = result.scalars().all()
+            if source_embeddings:
+                query_vector = source_embeddings[0].embedding
+                similar_stmt = (
+                    select(Incident, IncidentEmbedding)
+                    .join(IncidentEmbedding, IncidentEmbedding.incident_id == Incident.id)
+                    .where(IncidentEmbedding.id != source_embeddings[0].id)
+                    .order_by(IncidentEmbedding.embedding.cosine_distance(query_vector))
+                    .limit(3)
+                )
+                similar_result = await session.execute(similar_stmt)
+                seen = set()
+                context_parts = []
+                for row in similar_result:
+                    inc, emb = row
+                    if inc.id in seen:
+                        continue
+                    seen.add(inc.id)
+                    context_parts.append(
+                        f"--- Past Incident: {inc.title} (Severity: {inc.severity}, Status: {inc.status}) ---\n{emb.text_chunk}"
+                    )
+                if context_parts:
+                    rag_context = "\n\n".join(context_parts)
+
+        state["rag_context"] = rag_context
         chain = create_investigation_chain(_get_llm())
         result = await chain.ainvoke({
             "title": state["title"],
             "description": state["description"],
             "service_name": state["service_name"],
             "triage_summary": state["triage_summary"],
+            "rag_context": rag_context or "No relevant past incidents found.",
         })
         state["root_cause_hypothesis"] = result.root_cause_hypothesis
         state["investigation_confidence"] = result.confidence
@@ -158,6 +205,8 @@ async def stream_incident_workflow(incident_id: str, title: str, description: st
     initial_state = create_default_state(incident_id, title, description, service_name, service_status)
 
     config = {"configurable": {"thread_id": incident_id}}
+    if is_langfuse_available():
+        config["callbacks"] = get_trace_callbacks()
     final_state = None
 
     async for event in graph.astream_events(initial_state, config, version="v2"):

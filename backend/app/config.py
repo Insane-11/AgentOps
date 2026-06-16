@@ -12,12 +12,20 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
-    openai_api_key: str = ""
-    langsmith_api_key: str = ""
-    langsmith_project: str = "agentops"
-    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_llm_model: str = "llama3.1:8b"
+    ollama_embedding_model: str = "nomic-embed-text"
+
+    # LangFuse (self-hosted observability, optional)
+    langfuse_secret_key: str = ""
+    langfuse_public_key: str = ""
+    langfuse_host: str = "http://localhost:3000"
+
+    redis_url: str = ""
 
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
+
+    app_url: str = "http://localhost:5174"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

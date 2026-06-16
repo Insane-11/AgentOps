@@ -1,8 +1,9 @@
 import uuid
+from math import ceil
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -10,26 +11,41 @@ from app.models.incident import Incident
 from app.models.organization import Organization
 from app.schemas.incident import IncidentCreate, IncidentRead, IncidentUpdate
 from app.api.auth import get_current_org
+from app.api.pagination import PaginationParams
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 
 OrgDep = Annotated[Organization, Depends(get_current_org)]
 
 
-@router.get("", response_model=list[IncidentRead])
+@router.get("")
 async def list_incidents(
     org: OrgDep,
+    pagination: PaginationParams = Depends(),
     status_filter: str | None = Query(None, alias="status"),
     severity: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Incident).where(Incident.organization_id == org.id).order_by(Incident.created_at.desc())
+    base = select(Incident).where(Incident.organization_id == org.id)
     if status_filter:
-        stmt = stmt.where(Incident.status == status_filter.upper())
+        base = base.where(Incident.status == status_filter.upper())
     if severity:
-        stmt = stmt.where(Incident.severity == severity.upper())
+        base = base.where(Incident.severity == severity.upper())
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    stmt = base.order_by(Incident.created_at.desc()).offset(pagination.offset).limit(pagination.per_page)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    items = result.scalars().all()
+
+    return {
+        "items": [IncidentRead.model_validate(i).model_dump() for i in items],
+        "total": total,
+        "page": pagination.page,
+        "per_page": pagination.per_page,
+        "total_pages": ceil(total / pagination.per_page) if pagination.per_page else 0,
+    }
 
 
 @router.get("/{incident_id}", response_model=IncidentRead)

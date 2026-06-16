@@ -42,8 +42,9 @@ class ApiClient {
     });
   }
 
-  getIncidents() {
-    return this.request<any[]>("/api/incidents");
+  async getIncidents(): Promise<any[]> {
+    const resp = await this.request<{ items: any[] }>("/api/incidents?per_page=100");
+    return resp.items;
   }
 
   getIncident(id: string) {
@@ -70,6 +71,18 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  getAnalyticsOverview() {
+    return this.request<any>("/api/analytics/overview");
+  }
+
+  getAnalyticsAccuracy() {
+    return this.request<any>("/api/analytics/accuracy");
+  }
+
+  getEmbeddingCoverage() {
+    return this.request<any>("/api/analytics/embedding-coverage");
   }
 
   createAlert(data: { title: string; description?: string; severity?: string }) {

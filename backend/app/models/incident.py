@@ -29,3 +29,4 @@ class Incident(Base):
     service: Mapped["Service | None"] = relationship("Service", back_populates="incidents")
     assigned_engineer: Mapped["Engineer | None"] = relationship("Engineer")
     alert_events: Mapped[list["AlertEvent"]] = relationship("AlertEvent", back_populates="incident", cascade="all, delete-orphan")
+    embeddings: Mapped[list["IncidentEmbedding"]] = relationship("IncidentEmbedding", back_populates="incident", cascade="all, delete-orphan")

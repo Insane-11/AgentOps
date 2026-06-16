@@ -42,8 +42,9 @@ class ApiClient {
     });
   }
 
-  getIncidents() {
-    return this.request<any[]>("/api/incidents");
+  async getIncidents(): Promise<any[]> {
+    const resp = await this.request<{ items: any[] }>("/api/incidents?per_page=100");
+    return resp.items;
   }
 
   getIncident(id: string) {
@@ -66,6 +67,19 @@ class ApiClient {
 
   runTriage(incidentId: string) {
     return this.request<any>(`/api/triage/run/${incidentId}`, {
+      method: "POST",
+    });
+  }
+
+  embedIncident(incidentId: string) {
+    return this.request<any>("/api/embeddings/embed", {
+      method: "POST",
+      body: JSON.stringify({ incident_id: incidentId }),
+    });
+  }
+
+  getSimilarIncidents(incidentId: string) {
+    return this.request<{ incidents: any[] }>(`/api/embeddings/similar/${incidentId}`, {
       method: "POST",
     });
   }

@@ -2,7 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,38 +53,42 @@ async def create_alert(req: AlertCreate, org: OrgDep, db: AsyncSession = Depends
     )
     db.add(alert)
 
-    if settings.openai_api_key:
-        try:
-            service_name = "unknown"
-            service_status = "unknown"
-            if incident.service_id:
-                svc_result = await db.execute(select(Service).where(Service.id == incident.service_id))
-                svc = svc_result.scalar_one_or_none()
-                if svc:
-                    service_name = svc.name
-                    service_status = svc.status
+    try:
+        service_name = "unknown"
+        service_status = "unknown"
+        if incident.service_id:
+            svc_result = await db.execute(select(Service).where(Service.id == incident.service_id))
+            svc = svc_result.scalar_one_or_none()
+            if svc:
+                service_name = svc.name
+                service_status = svc.status
 
-            llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=settings.openai_api_key)
-            chain = create_triage_chain(llm)
-            triage_result = await chain.ainvoke({
-                "title": incident.title,
-                "description": incident.description or "",
-                "service_name": service_name,
-                "service_status": service_status,
-            })
+        llm = ChatOllama(
+            model=settings.ollama_llm_model,
+            base_url=settings.ollama_base_url,
+            temperature=0,
+            format="json",
+        )
+        chain = create_triage_chain(llm)
+        triage_result = await chain.ainvoke({
+            "title": incident.title,
+            "description": incident.description or "",
+            "service_name": service_name,
+            "service_status": service_status,
+        })
 
-            stmt = (
-                update(Incident)
-                .where(Incident.id == incident.id)
-                .values(
-                    severity=triage_result.severity.upper(),
-                    agent_summary=triage_result.summary,
-                    status="TRIAGED",
-                )
+        stmt = (
+            update(Incident)
+            .where(Incident.id == incident.id)
+            .values(
+                severity=triage_result.severity.upper(),
+                agent_summary=triage_result.summary,
+                status="TRIAGED",
             )
-            await db.execute(stmt)
-        except Exception as e:
-            print(f"Triage agent failed (non-blocking): {e}")
+        )
+        await db.execute(stmt)
+    except Exception as e:
+        print(f"Triage agent failed (non-blocking): {e}")
 
     await db.commit()
     await db.refresh(alert)

@@ -1,7 +1,8 @@
 from langchain.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import PydanticOutputParser
+from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
+
+from app.config import settings
 
 
 class TriageOutput(BaseModel):
@@ -29,14 +30,18 @@ Severity guidelines:
 - MEDIUM: Minor degradation, single-user issue, cosmetic bug, non-critical alert
 - LOW: Informational, noise, already resolved, no user impact
 
-Respond with structured data only."""
+You MUST respond with valid JSON only, matching this schema:
+{"severity": "CRITICAL|HIGH|MEDIUM|LOW", "confidence": 0.0-1.0, "summary": "...", "suggested_action": "...", "recommended_engineer_role": "..."}"""
 
 
-def create_triage_chain(llm: ChatOpenAI | None = None):
+def create_triage_chain(llm: ChatOllama | None = None):
     if llm is None:
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-
-    parser = PydanticOutputParser(pydantic_object=TriageOutput)
+        llm = ChatOllama(
+            model=settings.ollama_llm_model,
+            base_url=settings.ollama_base_url,
+            temperature=0,
+            format="json",
+        )
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
@@ -44,5 +49,4 @@ def create_triage_chain(llm: ChatOpenAI | None = None):
     ])
 
     chain = prompt | llm.with_structured_output(TriageOutput)
-
     return chain
