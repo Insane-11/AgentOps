@@ -26,6 +26,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
       LANGSMITH_PROJECT: "agentops"
+      LANGSMITH_ENDPOINT: "https://api.smith.langchain.com"
+      LANGSMITH_TRACING: "true"
     depends_on:
       postgres:
         condition: service_healthy

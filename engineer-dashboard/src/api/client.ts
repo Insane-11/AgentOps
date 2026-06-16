@@ -63,6 +63,12 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  runTriage(incidentId: string) {
+    return this.request<any>(`/api/triage/run/${incidentId}`, {
+      method: "POST",
+    });
+  }
 }
 
 export const api = new ApiClient();

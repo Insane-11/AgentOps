@@ -1,14 +1,48 @@
-"""
-LangChain agent for classifying incoming alerts.
-
-Phase 2 implementation:
-  Input: alert title, description, service name
-  Output: severity (CRITICAL/HIGH/MEDIUM/LOW), suggested engineer, initial summary
-"""
+from langchain.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain_core.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
 
 
-def create_triage_chain():
-    """Create the triage LangChain runnable.
-    Will be wired via LangServe in Phase 2.
-    """
-    pass
+class TriageOutput(BaseModel):
+    severity: str = Field(description="Severity level: CRITICAL, HIGH, MEDIUM, or LOW")
+    confidence: float = Field(description="Confidence score between 0.0 and 1.0")
+    summary: str = Field(description="One-paragraph summary of the incident and its impact")
+    suggested_action: str = Field(description="Immediate recommended action to take")
+    recommended_engineer_role: str | None = Field(
+        default=None,
+        description="Suggested engineer speciality (senior, backend, infra, etc.)"
+    )
+
+
+SYSTEM_PROMPT = """You are a senior Site Reliability Engineer triaging an incoming incident alert.
+
+Your job is to:
+1. Assess the severity based on the title, description, and affected service
+2. Write a concise summary of what's happening and the potential impact
+3. Recommend an immediate action
+4. Suggest what kind of engineer should handle this
+
+Severity guidelines:
+- CRITICAL: Customer-facing outage, data loss, security breach, payment system down
+- HIGH: Partial service degradation, feature unavailability, performance regression affecting many users
+- MEDIUM: Minor degradation, single-user issue, cosmetic bug, non-critical alert
+- LOW: Informational, noise, already resolved, no user impact
+
+Respond with structured data only."""
+
+
+def create_triage_chain(llm: ChatOpenAI | None = None):
+    if llm is None:
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+    parser = PydanticOutputParser(pydantic_object=TriageOutput)
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT),
+        ("human", "Title: {title}\nDescription: {description}\nService: {service_name}\nService Status: {service_status}"),
+    ])
+
+    chain = prompt | llm.with_structured_output(TriageOutput)
+
+    return chain
